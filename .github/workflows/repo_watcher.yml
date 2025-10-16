@@ -18,12 +18,13 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: 📦 Install dependencies
+      - name: 📦 Install Datapizza (core + client)
         run: |
           pip install --upgrade pip
-          pip install datapizza-ai-core
-          pip install datapizza-ai-clients-openai-like
+          pip install git+https://github.com/datapizza-labs/datapizza-ai-core.git@main
+          pip install git+https://github.com/datapizza-labs/datapizza-ai-clients-openai-like.git@main
           pip install python-dotenv requests
+      
 
       - name: 🚀 Run Datapizza Watcher
         env:
