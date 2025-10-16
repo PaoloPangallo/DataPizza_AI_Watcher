@@ -1,6 +1,3 @@
-requests
-python-dotenv
-datapizza-ai
-datapizza-ai-clients-openai-like
+
 
 

@@ -21,8 +21,9 @@ jobs:
       - name: 📦 Install dependencies
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install datapizza-ai datapizza-ai-clients-openai-like python-dotenv requests
+          pip install datapizza-ai-core
+          pip install datapizza-ai-clients-openai-like
+          pip install python-dotenv requests
 
       - name: 🚀 Run Datapizza Watcher
         env:
