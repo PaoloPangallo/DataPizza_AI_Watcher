@@ -167,15 +167,21 @@ if USE_LLM:
     )
     print("🤖 Modalità LLM attiva: uso Ollama locale.")
 else:
-    # ✅ Dummy client per GitHub Actions
+
+    # ✅ Dummy client per GitHub Actions con interfaccia compatibile
+    class DummyResponse:
+        def __init__(self, text="LLM disattivato su CI."):
+            self.text = text
+
+
     class DummyClient:
         def invoke(self, *args, **kwargs):
             print("🧩 DummyClient.invoke() chiamato (LLM disabilitato).")
-            return "LLM disattivato su CI."
+            return DummyResponse()
+
+
     client = DummyClient()
-    print("🌐 Modalità CI attiva: LLM disabilitato (uso DummyClient).")
-
-
+    print("🌐 Modalità CI attiva: LLM disabilitato (uso DummyClient compatibile).")
 
 # === Crea l'agente Datapizza ===
 agent = Agent(name="repo-watcher", client=client, tools=[check_repo_updates, get_repo_stats])
