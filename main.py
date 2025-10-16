@@ -168,10 +168,13 @@ if USE_LLM:
     print("🤖 Modalità LLM attiva: uso Ollama locale.")
 else:
 
-    # ✅ Dummy client per GitHub Actions con interfaccia compatibile
+    # ✅ Dummy client per GitHub Actions con interfaccia completa
     class DummyResponse:
         def __init__(self, text="LLM disattivato su CI."):
             self.text = text
+            self.function_calls = []  # richiesto da Agent
+            self.messages = []  # opzionale ma utile per coerenza
+            self.raw = {"status": "ok", "source": "DummyClient"}
 
 
     class DummyClient:
