@@ -1,15 +1,10 @@
-import os
-import requests
-import json
-import sys, types
-import random
-
 # === Patch preventiva per GitHub Actions (namespace datapizza) ===
+import sys, types, importlib
+
 try:
-    import datapizza.clients.openai_like  # ✅ tenta subito l'import
+    import datapizza.clients.openai_like
 except ModuleNotFoundError:
     try:
-        import importlib
         pkg = importlib.import_module("datapizza_ai_clients_openai_like")
         sys.modules["datapizza"] = types.ModuleType("datapizza")
         sys.modules["datapizza.clients"] = types.ModuleType("datapizza.clients")
@@ -19,7 +14,11 @@ except ModuleNotFoundError:
         print(f"❌ Patch datapizza fallita: {inner_e}")
 # ================================================================
 
-# Ora possiamo importare i moduli Datapizza in sicurezza
+import os
+import requests
+import json
+import random
+
 from datapizza.agents import Agent
 from datapizza.tools import tool
 from datapizza.clients.openai_like import OpenAILikeClient
