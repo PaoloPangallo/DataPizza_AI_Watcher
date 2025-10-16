@@ -406,6 +406,9 @@ def detect_mode(client_available):
 # === Main ===
 if __name__ == "__main__":
     print("🚀 Datapizza Repo Watcher avviato...\n")
+    from main import send_telegram_message
+
+    send_telegram_message("✅ Test Datapizza Watcher — messaggio di prova inviato da locale.")
 
     try:
         llm_client = setup_llm_client()
