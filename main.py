@@ -136,7 +136,7 @@ def get_repo_stats() -> str:
 client = OpenAILikeClient(
     api_key="",
     base_url="http://localhost:11434/v1",
-    model="mistral",
+    model="llama3.2",
     system_prompt="You are a funny assistant that announces repo updates humorously."
 )
 agent = Agent(name="repo-watcher", client=client, tools=[check_repo_updates, get_repo_stats])
