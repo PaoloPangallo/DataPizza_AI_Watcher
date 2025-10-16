@@ -2,7 +2,6 @@
 
 Un bot Python intelligente che monitora un repository GitHub, analizza i nuovi commit e invia notifiche personalizzate e riepiloghi settimanali a un canale Telegram con uno stile... particolare. ¡hacker! 💻
 
-![Hacker Style Notification](https://i.imgur.com/r3g3a7x.png) 
 *Esempio di notifica inviata su Telegram*
 
 ## ✨ Caratteristiche Principali
