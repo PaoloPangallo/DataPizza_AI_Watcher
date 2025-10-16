@@ -21,9 +21,7 @@ jobs:
       - name: 📦 Install Datapizza (core + client)
         run: |
           pip install --upgrade pip
-          pip install git+https://github.com/datapizza-labs/datapizza-ai-core.git@main
-          pip install git+https://github.com/datapizza-labs/datapizza-ai-clients-openai-like.git@main
-          pip install python-dotenv requests
+          pip install datapizza-ai datapizza-ai-clients-openai-like python-dotenv requests
 
       - name: 🔍 Debug datapizza modules
         run: |
