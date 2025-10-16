@@ -18,10 +18,8 @@ import os
 import requests
 import json
 import random
-
 from datapizza.agents import Agent
 from datapizza.tools import tool
-from datapizza.clients.openai_like import OpenAILikeClient
 
 # === Variabili d'ambiente (da GitHub Secrets o da telegram.env in locale) ===
 if os.path.exists("telegram.env"):
@@ -30,6 +28,7 @@ if os.path.exists("telegram.env"):
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+USE_LLM = os.getenv("USE_LLM", "false").lower() == "true"  # 🧠 controlla se usare LLM
 
 REPO = "datapizza-labs/datapizza-ai"
 CACHE_FILE = "last_commit.json"
@@ -156,16 +155,26 @@ def get_repo_stats(**kwargs) -> str:
         return f"❌ Errore stats: {e}"
 
 
-# === Client Datapizza (umorismo opzionale) ===
-client = OpenAILikeClient(
-    api_key="",
-    base_url="http://localhost:11434/v1",
-    model="llama3.2",
-    system_prompt="You are a funny assistant that announces repo updates humorously."
-)
+# === Client Datapizza (solo se USE_LLM è true) ===
+if USE_LLM:
+    from datapizza.clients.openai_like import OpenAILikeClient
+    client = OpenAILikeClient(
+        api_key="",
+        base_url="http://localhost:11434/v1",
+        model="llama3.2",
+        system_prompt="You are a funny assistant that announces repo updates humorously."
+    )
+    print("🤖 Modalità LLM attiva: uso Ollama locale.")
+else:
+    client = None
+    print("🌐 Modalità CI attiva: LLM disabilitato.")
+
+
+# === Crea l'agente Datapizza ===
 agent = Agent(name="repo-watcher", client=client, tools=[check_repo_updates, get_repo_stats])
 
 
+# === Esecuzione principale ===
 if __name__ == "__main__":
     print("🚀 Starting Datapizza Repo Watcher Bot...")
 
