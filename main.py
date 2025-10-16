@@ -109,8 +109,8 @@ def is_important_commit(commit_type):
     return commit_type in IMPORTANT_TYPES
 
 
-# === Invio messaggi Telegram ===
-def send_telegram_message(text: str, parse_mode: str = "HTML"):
+# === Invio messaggi Telegram con stile hacker ===
+def send_telegram_message(text: str, parse_mode: str = "HTML", reply_markup=None):
     if not TOKEN or not CHAT_ID:
         print("⚠️ Telegram non configurato.")
         return False
@@ -121,6 +121,8 @@ def send_telegram_message(text: str, parse_mode: str = "HTML"):
         "parse_mode": parse_mode,
         "disable_web_page_preview": False,
     }
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
     try:
         r = requests.post(url, json=payload, timeout=10)
         r.raise_for_status()
@@ -129,6 +131,22 @@ def send_telegram_message(text: str, parse_mode: str = "HTML"):
     except Exception as e:
         print(f"❌ Errore Telegram: {e}")
         return False
+
+
+def create_hacker_buttons(url_commit):
+    """Crea pulsanti interattivi stile hacker."""
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "🔗 VIEW_COMMIT.exe", "url": url_commit},
+                {"text": "📊 REPO_STATS", "url": f"https://github.com/{REPO}"}
+            ],
+            [
+                {"text": "⭐ STAR_ME", "url": f"https://github.com/{REPO}"},
+                {"text": "🍴 FORK_IT", "url": f"https://github.com/{REPO}/fork"}
+            ]
+        ]
+    }
 
 
 # === Tool: controllo commit intelligente ===
@@ -185,7 +203,7 @@ def check_repo_updates(**kwargs) -> str:
 
         # Decidi se notificare
         if is_important_commit(commit_type):
-            # Notifica immediata per commit importanti
+            # Notifica immediata per commit importanti - STILE HACKER
             emoji_map = {
                 "feat": "✨", "fix": "🐛", "security": "🔒",
                 "docs": "📚", "style": "🎨", "refactor": "♻️",
@@ -193,22 +211,33 @@ def check_repo_updates(**kwargs) -> str:
             }
             emoji = emoji_map.get(commit_type, "💾")
 
-            jokes = [
-                "🍕 Fresco di forno!",
-                "🔥 Un nuovo commit appena sfornato!",
-                "😎 Aggiornamento servito caldo!",
-                "🧠 Gli chef AI sono tornati al lavoro!",
-                "🚨 Allarme commit fresco!",
+            type_symbol = {
+                "feat": "[+]", "fix": "[*]", "security": "[!]",
+                "docs": "[?]", "style": "[~]", "other": "[·]"
+            }.get(commit_type, "[·]")
+
+            hacker_lines = [
+                ">>> ALERT: NEW_PAYLOAD DETECTED",
+                ">>> SYSTEM: CRITICAL_UPDATE INCOMING",
+                ">>> STATUS: REPOSITORY_MUTATION_ACTIVE",
+                ">>> SCANNER: HIGH_PRIORITY_CHANGE_FOUND",
+                ">>> DAEMON: CODE_INJECTION_INITIATED",
             ]
 
             text = (
-                f"{random.choice(jokes)}\n\n"
-                f"<b>{emoji} {commit_type.upper()}</b>\n"
-                f"👨‍💻 <b>Autore:</b> {author}\n"
-                f"💬 <b>Messaggio:</b> <code>{msg}</code>\n"
-                f"🔗 <a href='{url_commit}'>Visualizza su GitHub</a>"
+                f"<code>{'='*40}\n"
+                f"{random.choice(hacker_lines)}\n"
+                f"{'='*40}\n\n"
+                f"{type_symbol} [{commit_type.upper()}]\n"
+                f"├─ AUTHOR: {author}\n"
+                f"├─ MESSAGE: {msg}\n"
+                f"├─ HASH: {commit_sha[:8]}...\n"
+                f"└─ TIME: {date}\n"
+                f"{'='*40}</code>\n\n"
+                f"<b>⚡ {emoji} ACTION REQUIRED</b>"
             )
-            send_telegram_message(text)
+            buttons = create_hacker_buttons(url_commit)
+            send_telegram_message(text, reply_markup=buttons)
             return f"✅ Notifica inviata: {commit_type} - {msg}"
         else:
             # Commit non importante - accumula silenziosamente
@@ -258,18 +287,34 @@ def send_weekly_digest(**kwargs) -> str:
             author_counts[author] = author_counts.get(author, 0) + 1
         top_authors = sorted(author_counts.items(), key=lambda x: x[1], reverse=True)[:3]
 
-        # Costruisci messaggio
-        type_str = "\n".join([f"  {ct}: {count}" for ct, count in sorted(type_counts.items())])
-        authors_str = "\n".join([f"  👤 {author}: {count}" for author, count in top_authors])
+        # Costruisci messaggio - STILE HACKER
+        type_str = "".join([f"\n  {ct.upper()}: {count}" for ct, count in sorted(type_counts.items())])
+        authors_str = "".join([f"\n  [{i+1}] {author}: {count}$" for i, (author, count) in enumerate(top_authors)])
 
         text = (
-            f"📊 <b>DIGEST SETTIMANALE</b>\n\n"
-            f"📈 <b>Commit della scorsa settimana:</b> {len(weekly_commits)}\n\n"
-            f"<b>Per tipo:</b>\n{type_str}\n\n"
-            f"<b>Top Autori:</b>\n{authors_str}"
+            f"<code>╔════════════════════════════════╗\n"
+            f"║   WEEKLY_DIGEST.log [SYSTEM]    ║\n"
+            f"╚════════════════════════════════╝\n\n"
+            f"[SCAN_RESULTS]\n"
+            f"├─ COMMITS_FOUND: {len(weekly_commits)}\n"
+            f"├─ TIME_RANGE: 7_DAYS_BACK\n"
+            f"├─ STATUS: ✓ ANALYSIS_COMPLETE\n\n"
+            f"[COMMIT_TYPES]\n"
+            f"{type_str}\n\n"
+            f"[TOP_CONTRIBUTORS]\n"
+            f"{authors_str}\n\n"
+            f"╔════════════════════════════════╗\n"
+            f"║ END_REPORT - STAY_TUNED()      ║\n"
+            f"╚════════════════════════════════╝</code>"
         )
+        buttons = {
+            "inline_keyboard": [
+                [{"text": "🔗 OPEN_REPO.exe", "url": f"https://github.com/{REPO}"}],
+                [{"text": "📊 COMMITS_LOG", "url": f"https://github.com/{REPO}/commits/main"}]
+            ]
+        }
 
-        send_telegram_message(text)
+        send_telegram_message(text, reply_markup=buttons)
         return f"✅ Digest inviato: {len(weekly_commits)} commit"
 
     except Exception as e:
