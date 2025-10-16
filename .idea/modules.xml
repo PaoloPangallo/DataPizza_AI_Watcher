@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/DatapizzaAgent.iml" filepath="$PROJECT_DIR$/.idea/DatapizzaAgent.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/DataPizza_AI_Watcher.iml" filepath="$PROJECT_DIR$/.idea/DataPizza_AI_Watcher.iml" />
     </modules>
   </component>
 </project>
