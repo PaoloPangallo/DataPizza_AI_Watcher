@@ -1,5 +1,3 @@
-Certamente! Ecco una bozza di README.md completa e ben strutturata per il tuo script. Ho cercato di documentare le funzionalità principali, la configurazione e le modalità di esecuzione.
-
 Datapizza Repo Watcher 🤖
 Un bot Python intelligente che monitora un repository GitHub, analizza i nuovi commit e invia notifiche personalizzate e riepiloghi settimanali a un canale Telegram con uno stile... particolare. hacker! 💻
 
