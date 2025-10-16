@@ -21,9 +21,10 @@ jobs:
       - name: 📦 Install Datapizza (core + client)
         run: |
           pip install --upgrade pip
-          pip install datapizza-ai datapizza-ai-clients-openai-like python-dotenv requests
+          pip install datapizza-ai datapizza-ai-clients-openai-like
+          pip install python-dotenv requests
 
-      - name: 🔍 Debug datapizza modules
+      - name: 🔍 Debug Datapizza modules
         run: |
           python - <<'EOF'
           import sys, pkgutil
@@ -40,5 +41,6 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          USE_LLM: false   # ❌ Disattiva Ollama su GitHub Actions
         run: |
           python main.py
