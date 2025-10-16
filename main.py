@@ -156,6 +156,7 @@ def get_repo_stats(**kwargs) -> str:
 
 
 # === Client Datapizza (solo se USE_LLM è true) ===
+# === Client Datapizza (solo se USE_LLM è true) ===
 if USE_LLM:
     from datapizza.clients.openai_like import OpenAILikeClient
     client = OpenAILikeClient(
@@ -166,8 +167,14 @@ if USE_LLM:
     )
     print("🤖 Modalità LLM attiva: uso Ollama locale.")
 else:
-    client = None
-    print("🌐 Modalità CI attiva: LLM disabilitato.")
+    # ✅ Dummy client per GitHub Actions
+    class DummyClient:
+        def invoke(self, *args, **kwargs):
+            print("🧩 DummyClient.invoke() chiamato (LLM disabilitato).")
+            return "LLM disattivato su CI."
+    client = DummyClient()
+    print("🌐 Modalità CI attiva: LLM disabilitato (uso DummyClient).")
+
 
 
 # === Crea l'agente Datapizza ===
