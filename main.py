@@ -1,9 +1,13 @@
+#!/usr/bin/env python3
 # === Patch preventiva per GitHub Actions (namespace datapizza) ===
-import sys, types, importlib
+import sys
+import types
+import importlib
 
 try:
     import datapizza.clients.openai_like
-except ModuleNotFoundError:
+    print("✅ datapizza.clients.openai_like importato correttamente")
+except (ModuleNotFoundError, ImportError, AttributeError):
     try:
         pkg = importlib.import_module("datapizza_ai_clients_openai_like")
         sys.modules["datapizza"] = types.ModuleType("datapizza")
@@ -11,24 +15,24 @@ except ModuleNotFoundError:
         sys.modules["datapizza.clients.openai_like"] = pkg
         print("⚙️ [PATCH] Namespace 'datapizza.clients.openai_like' creato dinamicamente.")
     except Exception as inner_e:
-        print(f"❌ Patch datapizza fallita: {inner_e}")
-# ================================================================
+        print(f"⚠️ Patch datapizza fallito: {inner_e}")
 
 import os
-import requests
 import json
 import random
+import requests
 from datapizza.agents import Agent
 from datapizza.tools import tool
 
-# === Variabili d'ambiente (da GitHub Secrets o da telegram.env in locale) ===
+# === Variabili d'ambiente ===
 if os.path.exists("telegram.env"):
     from dotenv import load_dotenv
     load_dotenv("telegram.env")
 
-TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-USE_LLM = os.getenv("USE_LLM", "false").lower() == "true"  # 🧠 controlla se usare LLM
+TOKEN = os.getenv("TELEGRAM_TOKEN", "")
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+USE_LLM = os.getenv("USE_LLM", "false").lower() == "true"
+RUN_MODE = os.getenv("RUN_MODE", "auto")  # "auto", "agent", "direct"
 
 REPO = "datapizza-labs/datapizza-ai"
 CACHE_FILE = "last_commit.json"
@@ -37,20 +41,26 @@ CACHE_FILE = "last_commit.json"
 # === Utility: cache commit ===
 def load_last_commit():
     if os.path.exists(CACHE_FILE):
-        with open(CACHE_FILE, "r") as f:
-            return json.load(f)
+        try:
+            with open(CACHE_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return None
     return None
 
 
 def save_last_commit(sha):
-    with open(CACHE_FILE, "w") as f:
-        json.dump({"sha": sha}, f)
+    try:
+        with open(CACHE_FILE, "w") as f:
+            json.dump({"sha": sha}, f)
+    except Exception as e:
+        print(f"⚠️ Errore salvataggio cache: {e}")
 
 
-# === Utility: invio messaggi Telegram ===
+# === Invio messaggi Telegram ===
 def send_telegram_message(text: str, parse_mode: str = "HTML"):
     if not TOKEN or not CHAT_ID:
-        print("⚠️ Variabili TELEGRAM_TOKEN o TELEGRAM_CHAT_ID mancanti.")
+        print("⚠️ Telegram non configurato (variabili mancanti).")
         return
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {
@@ -62,6 +72,7 @@ def send_telegram_message(text: str, parse_mode: str = "HTML"):
     try:
         r = requests.post(url, json=payload, timeout=10)
         r.raise_for_status()
+        print("✅ Messaggio Telegram inviato.")
     except Exception as e:
         print(f"❌ Errore Telegram: {e}")
 
@@ -76,22 +87,19 @@ def check_repo_updates(**kwargs) -> str:
         r.raise_for_status()
         data = r.json()
 
-        # Fix: l'API può restituire lista invece di oggetto
-        if isinstance(data, list):
+        if isinstance(data, list) and data:
             data = data[0]
 
-        if "commit" not in data:
+        if not isinstance(data, dict) or "commit" not in data:
             return "⚠️ Risposta inaspettata da GitHub"
 
-        commit_sha = data["sha"]
+        commit_sha = data.get("sha")
         last_commit = load_last_commit()
 
-        # Se non ci sono novità → esce
-        if last_commit and last_commit["sha"] == commit_sha:
+        if last_commit and last_commit.get("sha") == commit_sha:
             print("✅ Nessun nuovo commit")
             return "✅ Nessun nuovo commit"
 
-        # Nuovo commit → prepara messaggio
         msg = data["commit"]["message"]
         author = data["commit"]["author"]["name"]
         date = data["commit"]["author"]["date"]
@@ -126,16 +134,18 @@ def check_repo_updates(**kwargs) -> str:
 
         send_telegram_message(text)
         save_last_commit(commit_sha)
-        return f"✅ Nuova notifica inviata: {msg}"
+        return f"✅ Notifica inviata: {msg}"
 
     except Exception as e:
-        send_telegram_message(f"❌ Errore: {e}")
-        return f"❌ Errore: {e}"
+        err_msg = f"❌ Errore: {e}"
+        send_telegram_message(err_msg)
+        return err_msg
 
 
 # === Tool: statistiche repo ===
 @tool
 def get_repo_stats(**kwargs) -> str:
+    """Recupera e invia statistiche del repository."""
     try:
         r = requests.get(f"https://api.github.com/repos/{REPO}", timeout=10)
         r.raise_for_status()
@@ -155,45 +165,110 @@ def get_repo_stats(**kwargs) -> str:
         return f"❌ Errore stats: {e}"
 
 
-# === Client Datapizza (solo se USE_LLM è true) ===
-# === Client Datapizza (solo se USE_LLM è true) ===
-if USE_LLM:
-    from datapizza.clients.openai_like import OpenAILikeClient
-    client = OpenAILikeClient(
-        api_key="",
-        base_url="http://localhost:11434/v1",
-        model="llama3.2",
-        system_prompt="You are a funny assistant that announces repo updates humorously."
-    )
-    print("🤖 Modalità LLM attiva: uso Ollama locale.")
-else:
+# === LLM Client Setup ===
+def setup_llm_client():
+    """Configura client LLM: Ollama se disponibile, altrimenti None."""
+    if not USE_LLM:
+        return None
 
-    # ✅ Dummy client per GitHub Actions con interfaccia completa
-    class DummyResponse:
-        def __init__(self, text="LLM disattivato su CI."):
-            self.text = text
-            self.function_calls = []  # richiesto da Agent
-            self.messages = []  # opzionale ma utile per coerenza
-            self.raw = {"status": "ok", "source": "DummyClient"}
+    print("🧠 Tentativo connessione a Ollama...")
+    try:
+        probe = requests.get("http://localhost:11434/api/tags", timeout=2)
+        if probe.status_code == 200:
+            from datapizza.clients.openai_like import OpenAILikeClient
+            client = OpenAILikeClient(
+                api_key="",
+                base_url="http://localhost:11434/v1",
+                model="llama3.2",
+                system_prompt="You are a helpful assistant that announces repository updates humorously."
+            )
+            print("✅ Ollama disponibile e connesso.")
+            return client
+        else:
+            print("⚠️ Ollama non risponde.")
+    except Exception as e:
+        print(f"⚠️ Ollama non raggiungibile: {e}")
 
-
-    class DummyClient:
-        def invoke(self, *args, **kwargs):
-            print("🧩 DummyClient.invoke() chiamato (LLM disabilitato).")
-            return DummyResponse()
-
-
-    client = DummyClient()
-    print("🌐 Modalità CI attiva: LLM disabilitato (uso DummyClient compatibile).")
-
-# === Crea l'agente Datapizza ===
-agent = Agent(name="repo-watcher", client=client, tools=[check_repo_updates, get_repo_stats])
+    return None
 
 
-# === Esecuzione principale ===
+# === Execution mode detection ===
+def detect_mode(client_available):
+    """Rileva il modalità di esecuzione."""
+    if RUN_MODE == "direct":
+        return "direct"
+    elif RUN_MODE == "agent":
+        return "agent" if client_available else "direct"
+    else:  # "auto"
+        # In CI (GitHub Actions), usa direct
+        if os.getenv("CI") == "true" or os.getenv("GITHUB_ACTIONS") == "true":
+            return "direct"
+        # Localmente, usa agent se LLM disponibile
+        return "agent" if client_available else "direct"
+
+
+# === Main ===
 if __name__ == "__main__":
-    print("🚀 Starting Datapizza Repo Watcher Bot...")
+    print("🚀 Datapizza Repo Watcher avviato...\n")
 
-    # Controlla aggiornamenti e statistiche (una sola esecuzione)
-    agent.run("Check if something new happened on the Datapizza AI repo")
-    agent.run("Get the repository statistics")
+    try:
+        # Setup LLM
+        llm_client = setup_llm_client()
+
+        # Rileva modalità
+        mode = detect_mode(llm_client is not None)
+        print(f"📌 Modalità: {mode.upper()}")
+        if mode == "agent":
+            print(f"   → Agent con LLM reale (Ollama)")
+        else:
+            print(f"   → Esecuzione diretta dei tool\n")
+
+        if mode == "agent" and llm_client:
+            # === MODALITÀ AGENT (con LLM reale) ===
+            print("🤖 Avvio Agent con LLM...\n")
+
+            agent = Agent(
+                name="repo-watcher",
+                client=llm_client,
+                tools=[check_repo_updates, get_repo_stats]
+            )
+
+            # Custom max_iterations per evitare loop infiniti
+            print("📋 Task 1: Controllo aggiornamenti...")
+            try:
+                agent.run(
+                    "Check if something new happened on the Datapizza AI repo",
+                    max_iterations=5
+                )
+            except TypeError:
+                # Se max_iterations non supportato, esegui senza
+                agent.run("Check if something new happened on the Datapizza AI repo")
+
+            print("\n📋 Task 2: Statistiche repo...")
+            try:
+                agent.run(
+                    "Get the repository statistics",
+                    max_iterations=5
+                )
+            except TypeError:
+                agent.run("Get the repository statistics")
+
+        else:
+            # === MODALITÀ DIRECT (esecuzione diretta tool) ===
+            print("🔧 Esecuzione diretta tool...\n")
+
+            print("📋 Task 1: Controllo aggiornamenti...")
+            result1 = check_repo_updates()
+            print(f"Risultato: {result1}\n")
+
+            print("📋 Task 2: Statistiche repo...")
+            result2 = get_repo_stats()
+            print(f"Risultato: {result2}\n")
+
+        print("✅ Watcher completato con successo!")
+
+    except Exception as e:
+        print(f"\n❌ Errore critico: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)

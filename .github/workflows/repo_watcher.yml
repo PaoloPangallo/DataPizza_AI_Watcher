@@ -3,7 +3,7 @@ name: Datapizza Repo Watcher
 on:
   schedule:
     - cron: "*/30 * * * *"   # ⏰ ogni 30 minuti
-  workflow_dispatch:          # permette di lanciarlo manualmente
+  workflow_dispatch:          # lancio manuale
 
 jobs:
   watch:
@@ -13,34 +13,47 @@ jobs:
       - name: 🧩 Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🐍 Set up Python
+      - name: 🐍 Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: 📦 Install Datapizza (core + client)
+      - name: 📦 Install dependencies
         run: |
-          pip install --upgrade pip
+          pip install --upgrade pip setuptools wheel
           pip install datapizza-ai datapizza-ai-clients-openai-like
           pip install python-dotenv requests
 
-      - name: 🔍 Debug Datapizza modules
+      - name: 🔍 Debug - Verify installation
         run: |
-          python - <<'EOF'
-          import sys, pkgutil
-          print("📦 PATHS PYTHON:")
-          for p in sys.path:
-              print(" -", p)
-          print("\n📦 Moduli installati contenenti 'datapizza':")
-          for m in pkgutil.iter_modules():
-              if "datapizza" in m.name:
-                  print(" -", m.name)
-          EOF
+          python -c "
+          import sys
+          print('Python version:', sys.version)
+          try:
+              import datapizza
+              print('✅ datapizza importato')
+          except ImportError as e:
+              print('⚠️ datapizza import fallito:', e)
+          try:
+              import datapizza_ai_clients_openai_like
+              print('✅ datapizza_ai_clients_openai_like importato')
+          except ImportError as e:
+              print('⚠️ datapizza_ai_clients_openai_like import fallito:', e)
+          "
 
       - name: 🚀 Run Datapizza Watcher
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          USE_LLM: false   # ❌ Disattiva Ollama su GitHub Actions
-        run: |
-          python main.py
+          USE_LLM: 'false'   # ❌ Disabilita Ollama in GitHub Actions
+          RUN_MODE: 'auto'   # auto = direct su CI, agent su locale con LLM
+          CI: 'true'         # segnala che siamo in GitHub Actions
+        run: python main.py
+
+      - name: 📊 Upload cache (optional)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: commit-cache
+          path: last_commit.json
+          retention-days: 7
