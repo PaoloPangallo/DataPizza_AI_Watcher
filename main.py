@@ -1,10 +1,24 @@
 import os
 import requests
 import json
+import sys, types
+import random
+
+# === PATCH per GitHub Actions (namespace datapizza) ===
+try:
+    import datapizza.clients.openai_like
+except ModuleNotFoundError:
+    import importlib
+    pkg = importlib.import_module("datapizza_ai_clients_openai_like")
+    sys.modules["datapizza"] = types.ModuleType("datapizza")
+    sys.modules["datapizza.clients"] = types.ModuleType("datapizza.clients")
+    sys.modules["datapizza.clients.openai_like"] = pkg
+    print("⚙️ [PATCH] Namespace 'datapizza.clients.openai_like' creato dinamicamente.")
+# =======================================================
+
 from datapizza.agents import Agent
 from datapizza.tools import tool
 from datapizza.clients.openai_like import OpenAILikeClient
-import random
 
 # === Variabili d'ambiente (da GitHub Secrets o da telegram.env in locale) ===
 if os.path.exists("telegram.env"):
@@ -33,6 +47,9 @@ def save_last_commit(sha):
 
 # === Utility: invio messaggi Telegram ===
 def send_telegram_message(text: str, parse_mode: str = "HTML"):
+    if not TOKEN or not CHAT_ID:
+        print("⚠️ Variabili TELEGRAM_TOKEN o TELEGRAM_CHAT_ID mancanti.")
+        return
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {
         "chat_id": CHAT_ID,
@@ -49,26 +66,30 @@ def send_telegram_message(text: str, parse_mode: str = "HTML"):
 
 # === Tool: controllo commit ===
 @tool
-def check_repo_updates() -> str:
+def check_repo_updates(**kwargs) -> str:
     """Controlla nuovi commit e notifica su Telegram."""
     try:
-        url = f"https://api.github.com/repos/{REPO}/commits/main"
+        url = kwargs.get("url", f"https://api.github.com/repos/{REPO}/commits/main")
         r = requests.get(url, timeout=10)
         r.raise_for_status()
         data = r.json()
 
-        if "commit" not in data or isinstance(data, list):
+        # Fix: l'API può restituire lista invece di oggetto
+        if isinstance(data, list):
+            data = data[0]
+
+        if "commit" not in data:
             return "⚠️ Risposta inaspettata da GitHub"
 
         commit_sha = data["sha"]
         last_commit = load_last_commit()
 
-        # se non ci sono novità → esce
+        # Se non ci sono novità → esce
         if last_commit and last_commit["sha"] == commit_sha:
             print("✅ Nessun nuovo commit")
             return "✅ Nessun nuovo commit"
 
-        # nuovo commit → prepara messaggio
+        # Nuovo commit → prepara messaggio
         msg = data["commit"]["message"]
         author = data["commit"]["author"]["name"]
         date = data["commit"]["author"]["date"]
@@ -112,7 +133,7 @@ def check_repo_updates() -> str:
 
 # === Tool: statistiche repo ===
 @tool
-def get_repo_stats() -> str:
+def get_repo_stats(**kwargs) -> str:
     try:
         r = requests.get(f"https://api.github.com/repos/{REPO}", timeout=10)
         r.raise_for_status()
@@ -132,7 +153,7 @@ def get_repo_stats() -> str:
         return f"❌ Errore stats: {e}"
 
 
-# === Client Datapizza (opzionale per generare testo umoristico) ===
+# === Client Datapizza (umorismo opzionale) ===
 client = OpenAILikeClient(
     api_key="",
     base_url="http://localhost:11434/v1",
