@@ -152,7 +152,7 @@ def create_hacker_buttons(url_commit):
 # === Tool: controllo commit intelligente ===
 @tool
 def check_repo_updates(**kwargs) -> str:
-    """Controlla nuovi commit con notifiche intelligenti."""
+    """Controlla nuovi commit e invia notifiche + statistiche solo se necessario."""
     try:
         url = f"https://api.github.com/repos/{REPO}/commits/main"
         r = requests.get(url, timeout=10)
@@ -174,14 +174,14 @@ def check_repo_updates(**kwargs) -> str:
             print("✅ Nessun nuovo commit")
             return "✅ Nessun nuovo commit"
 
-        # Nuovo commit rilevato
+        # 🆕 Nuovo commit rilevato
         msg = data["commit"]["message"].split("\n")[0]  # Prima riga
         author = data["commit"]["author"]["name"]
         date = data["commit"]["author"]["date"]
         url_commit = f"https://github.com/{REPO}/commit/{commit_sha}"
         commit_type = get_commit_type(msg)
 
-        # Aggiungi a history
+        # Aggiungi alla history
         commit_entry = {
             "sha": commit_sha,
             "message": msg,
@@ -191,63 +191,56 @@ def check_repo_updates(**kwargs) -> str:
             "url": url_commit
         }
         history["commits"].insert(0, commit_entry)
-        history["commits"] = history["commits"][:100]  # Mantieni ultimi 100
-
-        # Aggiorna stats
-        if author not in history["stats"]:
-            history["stats"][author] = 0
-        history["stats"][author] += 1
+        history["commits"] = history["commits"][:100]
+        history["stats"][author] = history["stats"].get(author, 0) + 1
 
         save_commit_history(history)
         save_last_commit(commit_sha)
 
-        # Decidi se notificare
-        if is_important_commit(commit_type):
-            # Notifica immediata per commit importanti - STILE HACKER
-            emoji_map = {
-                "feat": "✨", "fix": "🐛", "security": "🔒",
-                "docs": "📚", "style": "🎨", "refactor": "♻️",
-                "perf": "⚡", "test": "🧪", "other": "💾"
-            }
-            emoji = emoji_map.get(commit_type, "💾")
+        # Costruisci messaggio “stile hacker”
+        emoji_map = {
+            "feat": "✨", "fix": "🐛", "security": "🔒",
+            "docs": "📚", "style": "🎨", "refactor": "♻️",
+            "perf": "⚡", "test": "🧪", "other": "💾"
+        }
+        emoji = emoji_map.get(commit_type, "💾")
 
-            type_symbol = {
-                "feat": "[+]", "fix": "[*]", "security": "[!]",
-                "docs": "[?]", "style": "[~]", "other": "[·]"
-            }.get(commit_type, "[·]")
+        hacker_lines = [
+            ">>> ALERT: NEW_PAYLOAD DETECTED",
+            ">>> SYSTEM: CRITICAL_UPDATE INCOMING",
+            ">>> STATUS: REPOSITORY_MUTATION_ACTIVE",
+            ">>> SCANNER: HIGH_PRIORITY_CHANGE_FOUND",
+            ">>> DAEMON: CODE_INJECTION_INITIATED",
+        ]
 
-            hacker_lines = [
-                ">>> ALERT: NEW_PAYLOAD DETECTED",
-                ">>> SYSTEM: CRITICAL_UPDATE INCOMING",
-                ">>> STATUS: REPOSITORY_MUTATION_ACTIVE",
-                ">>> SCANNER: HIGH_PRIORITY_CHANGE_FOUND",
-                ">>> DAEMON: CODE_INJECTION_INITIATED",
-            ]
+        text = (
+            f"<code>{'='*40}\n"
+            f"{random.choice(hacker_lines)}\n"
+            f"{'='*40}\n\n"
+            f"[{commit_type.upper()}] {emoji}\n"
+            f"├─ AUTHOR: {author}\n"
+            f"├─ MESSAGE: {msg}\n"
+            f"├─ HASH: {commit_sha[:8]}...\n"
+            f"└─ TIME: {date}\n"
+            f"{'='*40}</code>\n\n"
+            f"<b>⚡ {emoji} New commit detected — updating stats...</b>"
+        )
 
-            text = (
-                f"<code>{'='*40}\n"
-                f"{random.choice(hacker_lines)}\n"
-                f"{'='*40}\n\n"
-                f"{type_symbol} [{commit_type.upper()}]\n"
-                f"├─ AUTHOR: {author}\n"
-                f"├─ MESSAGE: {msg}\n"
-                f"├─ HASH: {commit_sha[:8]}...\n"
-                f"└─ TIME: {date}\n"
-                f"{'='*40}</code>\n\n"
-                f"<b>⚡ {emoji} ACTION REQUIRED</b>"
-            )
-            buttons = create_hacker_buttons(url_commit)
-            send_telegram_message(text, reply_markup=buttons)
-            return f"✅ Notifica inviata: {commit_type} - {msg}"
-        else:
-            # Commit non importante - accumula silenziosamente
-            print(f"📝 Commit {commit_type} accumulato (non notificato): {msg}")
-            return f"📝 Commit {commit_type} accumulato"
+        buttons = create_hacker_buttons(url_commit)
+        send_telegram_message(text, reply_markup=buttons)
+
+        # 🧠 Subito dopo: invia statistiche aggiornate
+        print("📊 Nuovo commit rilevato → invio statistiche aggiornate...")
+        result_stats = get_repo_stats()
+        print(f"📈 Statistiche inviate: {result_stats}")
+
+        return f"✅ Notifica inviata e statistiche aggiornate: {commit_type} - {msg}"
 
     except Exception as e:
         err_msg = f"❌ Errore check_repo_updates: {e}"
         print(err_msg)
         return err_msg
+
 
 
 # === Tool: digest settimanale ===
@@ -322,7 +315,6 @@ def send_weekly_digest(**kwargs) -> str:
 
 
 # === Tool: statistiche repo ===
-@tool
 @tool
 def get_repo_stats(**kwargs) -> str:
     """Recupera e invia statistiche del repository in formato grafico e interattivo."""
@@ -453,7 +445,6 @@ def detect_mode(client_available):
 # === Main ===
 if __name__ == "__main__":
     print("🚀 Datapizza Repo Watcher avviato...\n")
-    from main import send_telegram_message
 
     send_telegram_message("✅ Test Datapizza Watcher — messaggio di prova inviato da locale.")
 
@@ -484,9 +475,6 @@ if __name__ == "__main__":
             result2 = send_weekly_digest()
             print(f"Risultato: {result2}\n")
 
-            print("📋 Task 3: Statistiche repo...")
-            result3 = get_repo_stats()
-            print(f"Risultato: {result3}\n")
 
         print("✅ Watcher completato!")
 
