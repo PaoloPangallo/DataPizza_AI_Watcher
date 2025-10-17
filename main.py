@@ -323,49 +323,96 @@ def send_weekly_digest(**kwargs) -> str:
 
 # === Tool: statistiche repo ===
 @tool
+@tool
 def get_repo_stats(**kwargs) -> str:
-    """Recupera e invia statistiche del repository."""
+    """Recupera e invia statistiche del repository in formato grafico e interattivo."""
     try:
-        r = requests.get(f"https://api.github.com/repos/{REPO}", timeout=10)
-        r.raise_for_status()
-        d = r.json()
+        # === 1️⃣ Fetch info repository ===
+        repo_url = f"https://api.github.com/repos/{REPO}"
+        commit_url = f"https://api.github.com/repos/{REPO}/commits/main"
 
+        repo_resp = requests.get(repo_url, timeout=10)
+        repo_resp.raise_for_status()
+        d = repo_resp.json()
+
+        commit_resp = requests.get(commit_url, timeout=10)
+        commit_resp.raise_for_status()
+        commit_data = commit_resp.json()
+        last_commit = commit_data[0] if isinstance(commit_data, list) else commit_data
+
+        # === 2️⃣ Estrai dati principali ===
         stats = {
             "stars": d['stargazers_count'],
             "forks": d['forks_count'],
             "watchers": d['watchers_count'],
             "issues": d['open_issues_count'],
             "language": d['language'],
-            "updated_at": d['updated_at']
+            "updated_at": d['updated_at'],
+            "html_url": d['html_url'],
         }
 
-        # Salva per confronti futuri
-        old_stats = load_repo_stats()
-        if old_stats:
-            stars_delta = stats["stars"] - old_stats.get("stars", 0)
-            issues_delta = stats["issues"] - old_stats.get("issues", 0)
-            deltas = f"\n⭐ Variazione: {'+' if stars_delta >= 0 else ''}{stars_delta} stelle\n📝 Variazione: {'+' if issues_delta >= 0 else ''}{issues_delta} issues"
-        else:
-            deltas = ""
+        commit_msg = last_commit["commit"]["message"].split("\n")[0]
+        commit_author = last_commit["commit"]["author"]["name"]
+        commit_date = last_commit["commit"]["author"]["date"]
+        commit_sha = last_commit["sha"]
+        commit_web_url = f"https://github.com/{REPO}/commit/{commit_sha}"
 
+        # === 3️⃣ Calcola variazioni ===
+        old_stats = load_repo_stats()
+        stars_delta = stats["stars"] - old_stats.get("stars", 0) if old_stats else 0
+        forks_delta = stats["forks"] - old_stats.get("forks", 0) if old_stats else 0
+        issues_delta = stats["issues"] - old_stats.get("issues", 0) if old_stats else 0
+
+        trend = (stars_delta / (old_stats["stars"] + 1) * 100) if old_stats else 0
+
+        # Salva per confronti futuri
         save_repo_stats(stats)
 
+        # === 4️⃣ Formatta data locale ===
+        utc_dt = datetime.fromisoformat(commit_date.replace("Z", "+00:00"))
+        local_dt = utc_dt + timedelta(hours=2)  # 🇮🇹
+        formatted_date = local_dt.strftime("%d %b %Y — %H:%M")
+
+        # === 5️⃣ Mini barra grafica ===
+        bar_len = 10
+        filled = min(max(int((trend / 10) * bar_len), 0), bar_len)
+        bar = "█" * filled + "▒" * (bar_len - filled)
+        trend_icon = "🚀" if trend > 0 else "💤" if trend == 0 else "📉"
+
+        # === 6️⃣ Messaggio Telegram ===
         text = (
-            f"📊 <b>Statistiche Repo</b>\n\n"
-            f"⭐ <b>Stars:</b> {stats['stars']}\n"
-            f"🔀 <b>Forks:</b> {stats['forks']}\n"
+            f"📦 <b>Datapizza Repo Watcher</b>\n\n"
+            f"🔗 <a href='{stats['html_url']}'>{REPO}</a>\n"
+            f"💻 <b>{stats['language']}</b>\n\n"
+            f"⭐ <b>Stars:</b> {stats['stars']} (<i>{stars_delta:+}</i>)\n"
+            f"🍴 <b>Forks:</b> {stats['forks']} (<i>{forks_delta:+}</i>)\n"
             f"👀 <b>Watchers:</b> {stats['watchers']}\n"
-            f"📝 <b>Issues:</b> {stats['issues']}\n"
-            f"📦 <b>Linguaggio:</b> {stats['language']}\n"
-            f"📅 <b>Ultimo update:</b> {stats['updated_at']}"
-            f"{deltas}"
+            f"🐞 <b>Issues:</b> {stats['issues']} (<i>{issues_delta:+}</i>)\n\n"
+            f"📈 <b>Andamento:</b> {bar} {trend_icon} ({trend:+.1f}%)\n"
+            f"🕓 <b>Ultimo commit:</b> <a href='{commit_web_url}'>{formatted_date}</a>\n"
+            f"<i>«{commit_msg}» — {commit_author}</i>"
         )
 
-        send_telegram_message(text)
-        return text
+        # === 7️⃣ Pulsanti interattivi ===
+        buttons = {
+            "inline_keyboard": [
+                [
+                    {"text": "🔗 Apri Commit", "url": commit_web_url},
+                    {"text": "📊 Repo Stats", "url": stats["html_url"]}
+                ],
+                [
+                    {"text": "⭐ Aggiungi Star", "url": stats["html_url"]},
+                    {"text": "🍴 Fai un Fork", "url": f"{stats['html_url']}/fork"}
+                ]
+            ]
+        }
+
+        send_telegram_message(text, reply_markup=buttons)
+        return f"✅ Statistiche inviate: {stats['stars']}⭐ ({stars_delta:+})"
 
     except Exception as e:
         return f"❌ Errore stats: {e}"
+
 
 
 # === LLM Client Setup ===
