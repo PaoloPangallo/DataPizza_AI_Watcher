@@ -2,7 +2,7 @@ name: Datapizza Repo Watcher
 
 on:
   schedule:
-    - cron: "*/30 * * * *"   # ⏰ ogni 30 minuti
+    - cron: "*/30 * * * *"   # ⏰ ogni 400 minuti
   workflow_dispatch:          # lancio manuale
 
 jobs:
